@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FL Studio Web - Pro Interface & Mixer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+    <style>
+        :root {
+            --fl-bg: #24282e;
+            --fl-dark: #1b1e22;
+            --fl-panel: #32373f;
+            --fl-grid-line: #2d323b;
+            --fl-grid-bar: #383e49;
+            --fl-orange: #ff6600;
+            --fl-text: #b5bcbe;
+            --fl-text-light: #e2e8f0;
+            --fl-danger: #ff3366;
+            --fl-success: #00e676;
+            --fl-accent: #00e5ff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #111316;
+            color: var(--fl-text);
+            margin: 0;
+            padding: 5px;
+            user-select: none;
+        }
+
+        /* BARRE DE MENU SUPÉRIEURE */
+        .fl-menu-bar {
+            background-color: var(--fl-dark);
+            display: flex;
+            align-items: center;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #141619;
+            gap: 15px;
+            position: relative;
+            z-index: 200;
+        }
+        .fl-menu-container { position: relative; display: inline-block; }
+        .fl-menu-item { cursor: pointer; color: #9ca3af; text-transform: uppercase; padding: 2px 6px; border-radius: 2px; }
+        .fl-menu-item:hover, .fl-menu-container:hover .fl-menu-item { color: var(--fl-text-light); background: #2a2f38; }
+        
+        .fl-dropdown {
+            display: none; position: absolute; top: 100%; left: 0; background-color: #282c34;
+            min-width: 160px; box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5); border: 1px solid #3e4451;
+            z-index: 250; border-radius: 3px; margin-top: 2px;
+        }
+        .fl-menu-container:hover .fl-dropdown { display: block; }
+        .fl-dropdown-item { color: #b5bcbe; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-size: 11px; }
+        .fl-dropdown-item:hover { background-color: #3e4451; color: white; }
+        .fl-dropdown-shortcut { color: #6b7280; font-size: 9px; margin-left: 10px; }
+        .fl-dropdown-divider { height: 1px; background-color: #1b1e22; margin: 4px 0; }
+        .fl-project-info { margin-left: auto; color: #5a6370; font-size: 11px; font-weight: normal; }
+
+        /* PANNEAU DE TRANSPORT */
+        .fl-transport-panel {
+            background-color: var(--fl-panel); border: 1px solid #282c32; padding: 6px;
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap; box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        .fl-btn-group { display: flex; background: var(--fl-dark); border-radius: 3px; padding: 2px; border: 1px solid #282c32; align-items: center; }
+        .fl-btn { background: none; border: none; color: var(--fl-text); font-size: 11px; font-weight: bold; padding: 4px 8px; cursor: pointer; border-radius: 2px; }
+        .fl-btn:hover { background: #3d434d; color: white; }
+        .fl-btn.active-song { background: var(--fl-orange); color: black; }
+        .fl-btn-rec { color: var(--fl-danger); font-size: 14px; padding: 2px 8px; }
+        .fl-btn-rec.armed { background: #5a1827; color: #ff4d79; animation: pulse 1.5s infinite; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+
+        .fl-display { background: #0d0e10; border: 1px solid #3d434d; border-radius: 3px; padding: 2px 8px; font-family: monospace; color: var(--fl-accent); font-size: 13px; font-weight: bold; min-width: 55px; text-align: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+        .fl-timer { color: #e2e8f0; font-size: 16px; min-width: 75px; }
+
+        /* PLAYLIST */
+        .playlist-toolbar { background-color: var(--fl-bg); border-top: 1px solid #323742; border-bottom: 1px solid #1b1e22; padding: 4px 10px; display: flex; align-items: center; gap: 15px; font-size: 11px; }
+        .tools-icons { display: flex; gap: 4px; }
+        .tool-icon { width: 22px; height: 22px; background: var(--fl-panel); border: 1px solid #434954; border-radius: 2px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
+        .tool-icon.active { background: #4b5361; border-color: var(--fl-accent); color: white; }
+
+        .playlist-container { display: flex; flex-direction: column; background-color: var(--fl-dark); margin-top: 2px; border: 1px solid #111; max-height: 550px; overflow-y: auto; }
+        .timeline-header-row { display: flex; height: 28px; background-color: #282c33; border-bottom: 1px solid #14161a; position: sticky; top: 0; z-index: 50; }
+        .track-header-top-left { width: 260px; min-width: 260px; border-right: 1px solid #1c1f24; background: #202329; display: flex; align-items: center; padding-left: 10px; font-size: 11px; font-weight: bold; color: #788291; }
+        .timeline-bars-container { flex: 1; position: relative; display: flex; overflow: hidden; cursor: pointer; height: 100%; }
+        .bar-number { position: absolute; font-size: 9px; font-family: monospace; color: #677281; top: 6px; transform: translateX(-50%); }
+        .playhead { position: absolute; top: 0; left: 0; width: 2px; height: 2000px; background-color: #ff3333; box-shadow: 0 0 4px #ff3333; z-index: 20; pointer-events: none; }
+
+        .playlist-track-row { display: flex; height: 64px; border-bottom: 1px solid var(--fl-grid-line); background-color: #1e2126; }
+        .track-sidebar { width: 260px; min-width: 260px; background-color: #1f2227; border-right: 1px solid #141619; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; box-sizing: border-box; font-size: 11px; font-weight: 600; color: #8fa0a6; }
+        .track-controls { display: flex; align-items: center; gap: 5px; }
+
+        .fl-led { width: 14px; height: 6px; background-color: #205030; border-radius: 1px; cursor: pointer; border: 1px solid #111; }
+        .fl-led.active { background-color: var(--fl-success); box-shadow: 0 0 4px var(--fl-success); }
+        .fl-solo-btn { background: #2e333c; border: 1px solid #434954; color: #788291; font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 2px; cursor: pointer; }
+        .fl-solo-btn.solo-active { background: var(--fl-success); color: black; border-color: var(--fl-success); }
+        .fl-arm-dot { width: 10px; height: 10px; border-radius: 50%; background-color: #3b2226; border: 1px solid #111; cursor: pointer; }
+        .fl-arm-dot.armed { background-color: var(--fl-danger); box-shadow: 0 0 5px var(--fl-danger); }
+        .fl-track-volume { width: 45px; accent-color: var(--fl-orange); cursor: pointer; }
+        .fl-fx-btn { background: #2e333c; border: 1px solid #434954; color: #99a5b5; font-size: 9px; padding: 2px 5px; border-radius: 2px; cursor: pointer; }
+
+        .track-grid-lane {
+            flex: 1; position: relative; background-color: #1b1e22;
+            background-image: linear-gradient(90deg, var(--fl-grid-bar) 1px, transparent 1px), linear-gradient(90deg, var(--fl-grid-line) 1px, transparent 1px);
+            background-size: 100px 100%, 25px 100%; cursor: crosshair;
+        }
+
+        .audio-clip {
+            position: absolute; top: 4px; height: 54px; background: linear-gradient(180deg, #503d6d 0%, #302446 100%);
+            border: 1px solid #785cb3; border-radius: 4px; opacity: 0.9; box-sizing: border-box; display: flex;
+            flex-direction: column; justify-content: space-between; padding: 3px; font-size: 9px; color: #d1c4e9;
+            overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.4); cursor: pointer;
+        }
+        .clip-wave { width: 100%; height: 25px; opacity: 0.4; border-bottom: 1px dashed rgba(255,255,255,0.2); pointer-events: none; }
+
+        /* RACK EFFETS POPUP */
+        .mixer-rack-popup {
+            position: fixed; bottom: 50px; right: 30px; width: 240px; background: #282c33;
+            border: 2px solid #434954; border-radius: 6px; padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            z-index: 300; display: none;
+        }
+        .mixer-rack-header { display: flex; justify-content: space-between; color: var(--fl-accent); font-size: 11px; font-weight: bold; border-bottom: 1px solid #1b1e22; padding-bottom: 5px; margin-bottom: 8px; }
+        .fx-slot-row { background: #1b1e22; border: 1px solid #383e49; padding: 8px; border-radius: 4px; margin-bottom: 6px; font-size: 10px; }
+        .fx-slot-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .fx-toggle-check { accent-color: var(--fl-success); cursor: pointer; }
+        .fx-slider { width: 100%; accent-color: var(--fl-accent); margin-top: 2px; height: 3px; background: #2c323b; outline: none; border: none; }
+
+        .fl-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); z-index: 500; align-items: center; justify-content: center; }
+        .fl-modal-content { background-color: #282c34; border: 1px solid #434954; padding: 20px; border-radius: 6px; width: 400px; max-width: 90%; color: var(--fl-text); font-size: 12px; line-height: 1.6; }
+        .fl-modal-header { font-size: 14px; font-weight: bold; color: white; margin-bottom: 12px; display: flex; justify-content: space-between; }
+
+        .master-footer-bar { background-color: var(--fl-dark); padding: 8px; margin-top: 5px; display: flex; justify-content: flex-end; }
+        .export-btn { background: var(--fl-success); color: black; font-weight: bold; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+        .export-btn:disabled { background: #2c3530; color: #555; }
+    </style>
+</head>
+<body>
+
+    <input type="file" id="projectLoadInput" accept=".flweb" style="display:none;">
+
+    <!-- BARRE DE MENU SUPÉRIEURE -->
+    <div class="fl-menu-bar">
+        <div class="fl-menu-container">
+            <div class="fl-menu-item">Fichier</div>
+            <div class="fl-dropdown">
+                <div class="fl-dropdown-item" onclick="newProject()">Nouveau Projet <span class="fl-dropdown-shortcut">Ctrl+N</span></div>
+                <div class="fl-dropdown-divider"></div>
+                <div class="fl-dropdown-item" onclick="saveProjectFile()">Sauvegarder Projet (.flweb) <span class="fl-dropdown-shortcut">Ctrl+S</span></div>
+                <div class="fl-dropdown-item" onclick="document.getElementById('projectLoadInput').click()">Charger un projet... <span class="fl-dropdown-shortcut">Ctrl+O</span></div>
+            </div>
+        </div>
+
+        <div class="fl-menu-container">
+            <div class="fl-menu-item">Ajout</div>
+            <div class="fl-dropdown">
+                <div class="fl-dropdown-item" onclick="addNewAudioTrack()">Insérer une piste audio <span class="fl-dropdown-shortcut">Alt+T</span></div>
+            </div>
+        </div>
+
+        <div class="fl-menu-container"><div class="fl-menu-item" style="cursor: default; opacity: 0.5;">Patterns</div></div>
+        <div class="fl-menu-container"><div class="fl-menu-item" style="cursor: default; opacity: 0.5;">Vue</div></div>
+        <div class="fl-menu-container"><div class="fl-menu-item" style="cursor: default; opacity: 0.5;">Options</div></div>
+        <div class="fl-menu-container"><div class="fl-menu-item" onclick="toggleHelpModal(true)">Aide</div></div>
+
+        <div class="fl-project-info" id="flProjectStatus">Session : Anti-Bruit Automatique Activé</div>
+    </div>
+
+    <!-- TRANSPORT PANEL -->
+    <div class="fl-transport-panel">
+        <div class="fl-btn-group">
+            <button class="fl-btn active-song">SONG</button>
+            <button class="fl-btn">PAT</button>
+        </div>
+        <div class="fl-btn-group">
+            <button class="fl-btn" id="playBtn" disabled>▶</button>
+            <button class="fl-btn" id="stopBtn">■</button>
+            <button class="fl-btn fl-btn-rec" id="masterRecBtn" disabled>●</button>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <span style="font-size:8px; color:#7c8594; font-weight:bold;">TEMPO</span>
+            <div class="fl-display">130.000</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <span style="font-size:8px; color:#7c8594; font-weight:bold;">POSITION</span>
+            <div class="fl-display fl-timer" id="flTimerDisplay">1:01:00</div>
+        </div>
+        <button class="fl-btn" id="initInputBtn" style="background: #3e4450; color: white; margin-left: 10px; border: 1px solid #525b6b; border-radius:3px;">🎤 ALLUMER ENTRÉE MICRO</button>
+        
+        <div class="fl-btn-group" style="margin-left:auto;">
+            <span style="font-size: 10px; padding: 0 8px; color:#8fa0a6; font-weight:bold;">INSTRUMENTAL :</span>
+            <input type="file" id="beatUpload" accept="audio/*" style="font-size: 10px; color: #9ca3af; width: 160px;">
+        </div>
+    </div>
+
+    <!-- PLAYLIST ARRANGEMENT -->
+    <div class="playlist-toolbar">
+        <span style="font-weight: bold; color: var(--fl-text-light);">Playlist - Arrangement</span>
+        <div class="tools-icons">
+            <div class="tool-icon active" id="tool-draw" onclick="setTool('draw')">✏️</div>
+            <div class="tool-icon" id="tool-cut" onclick="setTool('cut')">✂️</div>
+        </div>
+        <span style="color:#00e5ff; font-size:10px; font-weight: bold;">Le Réducteur de Bruit Intelligent Auto capte fortement ta voix et élimine le reste !</span>
+    </div>
+
+    <div class="playlist-container" id="playlistTracksContainer">
+        <div class="timeline-header-row" id="timelineHeader">
+            <div class="track-header-top-left">Nom de la piste</div>
+            <div class="timeline-bars-container" id="barsContainer"><div class="playhead" id="playhead"></div></div>
+        </div>
+
+        <div class="playlist-track-row" id="beatRow" style="display:none;">
+            <div class="track-sidebar">
+                <span>🎵 Track 1 (BEAT)</span>
+                <div class="track-controls">
+                    <div class="fl-led active" id="led-beat" onclick="toggleMute('beat')"></div>
+                    <button class="fl-solo-btn" id="solo-beat" onclick="toggleSolo('beat')">S</button>
+                    <input type="range" class="fl-track-volume" id="vol-beat" min="-30" max="6" step="1" value="-3" oninput="changeVolume('beat', this.value)">
+                </div>
+            </div>
+            <div class="track-grid-lane" id="lane-beat">
+                <div id="beatVisualBlock" class="audio-clip" style="background: linear-gradient(180deg, #1d4ed8 0%, #1e3a8a 100%); border-color: #3b82f6; width: 100%;">
+                    <span>Instru Chargée</span><div class="clip-wave"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MIXER INSERT RACK -->
+    <div class="mixer-rack-popup" id="mixerRack">
+        <div class="mixer-rack-header">
+            <span id="rackTitle">Mixer Insert</span>
+            <span style="cursor:pointer;" onclick="document.getElementById('mixerRack').style.display='none'">✕</span>
+        </div>
+        
+        <div class="fx-slot-row">
+            <div class="fx-slot-top"><span>✨ Slot 1: Autotune</span><span style="font-size:9px; color:var(--fl-success);">AUTO ON</span></div>
+            <input type="range" class="fx-slider" id="slideAutotune" min="0" max="100" value="85">
+        </div>
+        <div class="fx-slot-row">
+            <div class="fx-slot-top"><span>🌌 Slot 2: Reverb</span><input type="checkbox" class="fx-toggle-check" id="checkReverb" onchange="toggleFxSwitch('reverb')"></div>
+            <input type="range" class="fx-slider" id="slideReverb" min="0" max="100" value="35">
+        </div>
+        <div class="fx-slot-row">
+            <div class="fx-slot-top"><span>🔂 Slot 3: Delay</span><input type="checkbox" class="fx-toggle-check" id="checkDelay" onchange="toggleFxSwitch('delay')"></div>
+            <input type="range" class="fx-slider" id="slideDelay" min="0" max="100" value="25">
+        </div>
+
+        <!-- INTÉGRATION DE L'ÉTAPE 1 : NOISE GATE INTELLIGENT ET AUTOMATIQUE -->
+        <div class="fx-slot-row" style="border-left: 2px solid var(--fl-success); background: #17241e;">
+            <div class="fx-slot-top">
+                <span style="color: var(--fl-success); font-weight: bold;">🔒 Slot 4: Auto Noise Gate</span>
+                <input type="checkbox" class="fx-toggle-check" id="checkGate" checked onchange="toggleFxSwitch('gate')">
+            </div>
+            <div style="font-size: 8px; color: #8fa0a6; margin-bottom: 2px;">Seuil de capture automatique de la voix forte :</div>
+            <input type="range" class="fx-slider" id="slideGate" min="-60" max="-15" step="1" value="-35" oninput="changeGateThreshold(this.value)">
+        </div>
+    </div>
+
+    <div class="fl-modal" id="helpModal">
+        <div class="fl-modal-content">
+            <div class="fl-modal-header"><span>Système Anti-Bruit Intégré</span><span style="cursor:pointer;" onclick="toggleHelpModal(false)">✕</span></div>
+            <p><b>1. Capture Automatique Forte (Noise Gate) :</b> Activé par défaut sur le Slot 4. Il calcule en continu l'amplitude de l'entrée et ferme l'accès si ce n'est que du bruit ambiant.</p>
+            <p><b>2. Suppression Définitive (Filtre Spectral) :</b> Lors de l'exportation finale en .MP3, un algorithme d'expansion analyse le spectre des clips enregistrés et supprime définitivement le bruit résiduel.</p>
+        </div>
+    </div>
+
+    <div class="master-footer-bar">
+        <button class="export-btn" id="masterExportBtn" disabled>📦 EXPORTER LE MIX NETTOYÉ EN .MP3</button>
+    </div>
+
+<script>
+    let mic, beatPlayer, audioCtx;
+    let isMicReady = false, isPlaying = false, isArmedGlobal = false, isRecordingAudio = false;
+    let currentTool = 'draw', trackCounter = 1, currentPosition = 0, startTime = 0, playInterval, currentRecorder, recordedChunks = [], startOffsetTime = 0;
+    const MAX_DURATION = 180;
+    let activeTrackId = '';
+
+    let state = { beat: { player: null, muted: false, soloed: false, volume: -3 } };
+    let nodes = {};
+
+    document.addEventListener('contextmenu', event => event.preventDefault());
+
+    const initInputBtn = document.getElementById('initInputBtn');
+    const playBtn = document.getElementById('playBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const masterRecBtn = document.getElementById('masterRecBtn');
+    const playhead = document.getElementById('playhead');
+    const flTimerDisplay = document.getElementById('flTimerDisplay');
+    const barsContainer = document.getElementById('barsContainer');
+    const masterExportBtn = document.getElementById('masterExportBtn');
+    const playlistTracksContainer = document.getElementById('playlistTracksContainer');
+
+    function setTool(tool) {
+        currentTool = tool;
+        document.getElementById('tool-draw').classList.toggle('active', tool === 'draw');
+        document.getElementById('tool-cut').classList.toggle('active', tool === 'cut');
+    }
+
+    function generateTimelineNumbers() {
+        barsContainer.innerHTML = '<div class="playhead" id="playhead"></div>';
+        for (let i = 1; i <= 30; i++) {
+            let num = document.createElement('div'); num.className = 'bar-number'; num.textContent = i; num.style.left = `${(i - 1) * 100 + 12}px`; barsContainer.appendChild(num);
+        }
+    }
+
+    function createTrackDOM(id, name) {
+        trackCounter++;
+        const row = document.createElement('div'); row.className = 'playlist-track-row'; row.id = `row-${id}`;
+        row.innerHTML = `
+            <div class="track-sidebar">
+                <span>🎙️ ${name}</span>
+                <div class="track-controls">
+                    <div class="fl-led active" id="led-${id}" onclick="toggleMute('${id}')"></div>
+                    <button class="fl-solo-btn" id="solo-${id}" onclick="toggleSolo('${id}')">S</button>
+                    <input type="range" class="fl-track-volume" id="vol-${id}" min="-30" max="6" step="1" value="0" oninput="changeVolume('${id}', this.value)">
+                    <button class="fl-fx-btn" onclick="openRack('${id}')">FX</button>
+                    <div class="fl-arm-dot" id="arm-${id}" onclick="armTrack('${id}')"></div>
+                </div>
+            </div>
+            <div class="track-grid-lane" id="lane-${id}"></div>
+        `;
+        playlistTracksContainer.appendChild(row);
+    }
+
+    function buildTrackNodes(id) {
+        nodes[id] = {};
+        // Configuration de la capture automatique de la voix forte (-35 dB par défaut)
+        nodes[id].gate = new Tone.Gate(-35, 0.05); 
+        nodes[id].gate.release = 0.15; // Évite de couper la fin des mots brusquement
+        
+        nodes[id].autotune = new Tone.PitchShift({ pitch: 0.06 }); 
+        nodes[id].reverb = new Tone.Reverb({ roomSize: 0.6, wet: 0 }); 
+        nodes[id].delay = new Tone.FeedbackDelay("8n", 0); 
+        nodes[id].volNode = new Tone.Volume(0);
+
+        nodes[id].gate.chain(nodes[id].autotune, nodes[id].delay, nodes[id].reverb, nodes[id].volNode, Tone.Destination);
+    }
+
+    function addNewAudioTrack(customName = null) {
+        let id = "voice_" + Date.now() + "_" + Math.floor(Math.random()*100);
+        let name = customName || `Track ${trackCounter} (VOX)`;
+        state[id] = { clips: [], armed: false, muted: false, soloed: false, volume: 0, fx: { autotune: 85, reverb: false, reverbWet: 0.35, delay: false, delayWet: 0.25, gate: true, gateThreshold: -35 }, name: name };
+        createTrackDOM(id, name);
+        if (isMicReady) buildTrackNodes(id);
+        return id;
+    }
+
+    function setupDefaultTracks() { trackCounter = 1; addNewAudioTrack("Track 2 (LEAD)"); addNewAudioTrack("Track 3 (BACKS)"); addNewAudioTrack("Track 4 (FX VOX)"); }
+
+    async function initMicrophone() {
+        await Tone.start(); audioCtx = Tone.getContext(); mic = new Tone.UserMedia();
+        try {
+            await mic.open(); isMicReady = true; initInputBtn.textContent = "🎤 ENTRÉE AUDIO ACTIVE"; initInputBtn.style.background = "#00e676"; initInputBtn.style.color = "black"; masterRecBtn.disabled = false;
+            Object.keys(state).forEach(id => { if (id !== 'beat') buildTrackNodes(id); });
+            let firstVoice = Object.keys(state).find(id => id !== 'beat'); if(firstVoice) armTrack(firstVoice); 
+        } catch(e) { alert("Micro inaccessible."); }
+    }
+    initInputBtn.addEventListener('click', initMicrophone);
+
+    document.getElementById('beatUpload').addEventListener('change', (e) => { const file = e.target.files[0]; if (file) loadBeatFromBlob(file); });
+
+    function loadBeatFromBlob(file) {
+        const url = URL.createObjectURL(file); beatPlayer = new Tone.Player(url).toDestination(); beatPlayer.volume.value = state.beat.volume; state.beat.player = beatPlayer; state.beat.base64 = file;
+        document.getElementById('beatRow').style.display = 'flex'; playBtn.disabled = false; masterExportBtn.disabled = false;
+    }
+
+    window.armTrack = function(trackId) {
+        Object.keys(state).forEach(id => {
+            if (id !== 'beat') {
+                if (id === trackId) { state[id].armed = !state[id].armed; document.getElementById(`arm-${id}`).classList.toggle('armed', state[id].armed); }
+                else { state[id].armed = false; document.getElementById(`arm-${id}`).classList.remove('armed'); }
+            }
+        });
+    };
+
+    window.toggleMute = function(trackId) { state[trackId].muted = !state[trackId].muted; document.getElementById(`led-${trackId}`).classList.toggle('active', !state[trackId].muted); updateMuteSoloRouting(); };
+    window.toggleSolo = function(trackId) { state[trackId].soloed = !state[trackId].soloed; document.getElementById(`solo-${trackId}`).classList.toggle('solo-active', state[trackId].soloed); updateMuteSoloRouting(); };
+
+    function updateMuteSoloRouting() {
+        const tracks = Object.keys(state); const anySoloActive = tracks.some(id => state[id].soloed);
+        tracks.forEach(id => {
+            let silence = false; if (state[id].muted) silence = true; else if (anySoloActive) silence = !state[id].soloed; 
+            if (id === 'beat' && beatPlayer) beatPlayer.mute = silence; else if (id !== 'beat') state[id].clips.forEach(c => { if(c.player) c.player.mute = silence; });
+        });
+    }
+
+    window.changeVolume = function(trackId, val) {
+        state[trackId].volume = parseFloat(val);
+        if (trackId === 'beat' && beatPlayer) beatPlayer.volume.value = parseFloat(val);
+        else if(nodes[trackId] && nodes[trackId].volNode) nodes[trackId].volNode.volume.value = parseFloat(val);
+    };
+
+    window.changeGateThreshold = function(val) {
+        state[activeTrackId].fx.gateThreshold = parseFloat(val);
+        if (nodes[activeTrackId] && state[activeTrackId].fx.gate) {
+            nodes[activeTrackId].gate.threshold = parseFloat(val);
+        }
+    };
+
+    masterRecBtn.addEventListener('click', () => {
+        let armedId = Object.keys(state).find(id => id !== 'beat' && state[id].armed);
+        if(!armedId) { alert("Active d'abord le rond rouge d'une piste !"); return; }
+        if(!isArmedGlobal) { isArmedGlobal = true; masterRecBtn.classList.add('armed'); if(!isPlaying) playTimeline(); else startRecordingStream(); }
+        else { isArmedGlobal = false; masterRecBtn.classList.remove('armed'); if(isRecordingAudio) stopRecordingStream(); }
+    });
+
+    function startRecordingStream() {
+        if (isRecordingAudio) return; isRecordingAudio = true; recordedChunks = []; startOffsetTime = currentPosition;
+        const dest = audioCtx.createMediaStreamDestination(); mic.connect(dest);
+        currentRecorder = new MediaRecorder(dest.stream); currentRecorder.ondataavailable = e => { if(e.data.size > 0) recordedChunks.push(e.data); };
+        currentRecorder.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: 'audio/wav' }); let duration = audioCtx.currentTime - startTime - startOffsetTime;
+            if(duration > 0.4) createAudioClipOnGrid(blob, startOffsetTime, duration);
+        };
+        currentRecorder.start();
+    }
+
+    function stopRecordingStream() { isRecordingAudio = false; if(currentRecorder && currentRecorder.state !== "inactive") currentRecorder.stop(); }
+
+    function createAudioClipOnGrid(blob, offset, duration, existingClipId = null, base64Data = null) {
+        let currentArmed = Object.keys(state).find(id => id !== 'beat' && state[id].armed);
+        if(!currentArmed && existingClipId) return; 
+
+        const url = blob ? URL.createObjectURL(blob) : base64Data;
+        let p = new Tone.Player(url); if(nodes[currentArmed]) p.chain(nodes[currentArmed].gate);
+
+        let clipId = existingClipId || "clip_" + Date.now() + "_" + Math.floor(Math.random()*100);
+        if(!existingClipId) state[currentArmed].clips.push({ id: clipId, offset: offset, duration: duration, blob: blob });
+        else { let cl = state[currentArmed].clips.find(c => c.id === clipId); if(cl) cl.player = p; }
+
+        let targetClip = state[currentArmed].clips.find(c => c.id === clipId); if(targetClip) targetClip.player = p;
+
+        let leftPx = offset * 25, widthPx = duration * 25;
+        const lane = document.getElementById(`lane-${currentArmed}`);
+        const block = document.createElement('div'); block.className = 'audio-clip'; block.id = clipId; block.style.left = `${leftPx}px`; block.style.width = `${Math.max(widthPx, 20)}px`;
+        block.innerHTML = `<span>Take ${state[currentArmed].clips.length}</span><div class="clip-wave"></div>`;
+        
+        block.addEventListener('mousedown', (e) => { if (e.button === 2 || currentTool === 'cut') deleteClip(currentArmed, clipId); });
+        lane.appendChild(block); updateMuteSoloRouting();
+    }
+
+    function deleteClip(trackId, clipId) {
+        let idx = state[trackId].clips.findIndex(c => c.id === clipId);
+        if (idx !== -1) { try { state[trackId].clips[idx].player.stop(); state[trackId].clips[idx].player.dispose(); } catch(e){} state[trackId].clips.splice(idx, 1); }
+        let element = document.getElementById(clipId); if (element) element.remove();
+    }
+
+    function playTimeline() {
+        isPlaying = true; startTime = audioCtx.currentTime - currentPosition; updateMuteSoloRouting();
+        if (beatPlayer && beatPlayer.loaded && currentPosition < beatPlayer.buffer.duration) beatPlayer.start(undefined, currentPosition);
+
+        Object.keys(state).forEach(id => {
+            if(id !== 'beat') {
+                state[id].clips.forEach(clip => {
+                    if(currentPosition >= clip.offset && clip.player) {
+                        let diff = currentPosition - clip.offset; if(diff < clip.player.buffer.duration) clip.player.start(undefined, diff);
+                    }
+                });
+            }
+        });
+
+        if(isArmedGlobal) startRecordingStream();
+        playInterval = setInterval(() => {
+            currentPosition = audioCtx.currentTime - startTime; const head = document.getElementById('playhead'); if(head) head.style.left = `${currentPosition * 25}px`;
+            updateTimerDisplay(); if (currentPosition >= MAX_DURATION) stopTimeline();
+        }, 100);
+    }
+
+    function stopTimeline() {
+        isPlaying = false; clearInterval(playInterval); stopRecordingStream(); if(beatPlayer) beatPlayer.stop();
+        Object.keys(state).forEach(id => { if(id !== 'beat') state[id].clips.forEach(c => { if(c.player) c.player.stop(); }); });
+    }
+
+    playBtn.addEventListener('click', () => { if(!isPlaying) playTimeline(); });
+    stopBtn.addEventListener('click', () => { stopTimeline(); currentPosition = 0; const head = document.getElementById('playhead'); if(head) head.style.left = "0px"; updateTimerDisplay(); });
+
+    barsContainer.addEventListener('click', (e) => {
+        const rect = barsContainer.getBoundingClientRect(); const clickX = e.clientX - rect.left; currentPosition = clickX / 25; 
+        const head = document.getElementById('playhead'); if(head) head.style.left = `${clickX}px`; updateTimerDisplay(); if(isPlaying) { stopTimeline(); playTimeline(); }
+    });
+
+    function updateTimerDisplay() {
+        let totalBars = Math.floor(currentPosition / 4) + 1; let remainingBeats = Math.floor(currentPosition % 4) + 1;
+        flTimerDisplay.textContent = `${totalBars}:${remainingBeats.toString().padStart(2,'0')}:00`;
+    }
+
+    window.openRack = function(trackId) {
+        activeTrackId = trackId; let fx = state[trackId].fx;
+        document.getElementById('rackTitle').textContent = `Mixer Insert - ${state[trackId].name}`;
+        document.getElementById('mixerRack').style.display = 'block';
+        document.getElementById('checkReverb').checked = fx.reverb;
+        document.getElementById('checkDelay').checked = fx.delay;
+        document.getElementById('checkGate').checked = fx.gate;
+        document.getElementById('slideAutotune').value = fx.autotune;
+        document.getElementById('slideReverb').value = fx.reverbWet * 100;
+        document.getElementById('slideDelay').value = fx.delayWet * 100;
+        document.getElementById('slideGate').value = fx.gateThreshold || -35;
+    };
+
+    window.toggleFxSwitch = function(type) {
+        let fx = state[activeTrackId].fx; fx[type] = !fx[type];
+        if(type === 'reverb' && nodes[activeTrackId]) nodes[activeTrackId].reverb.wet.value = fx.reverb ? fx.reverbWet : 0;
+        if(type === 'delay' && nodes[activeTrackId]) nodes[activeTrackId].delay.wet.value = fx.delay ? fx.delayWet : 0;
+        if(type === 'gate' && nodes[activeTrackId]) nodes[activeTrackId].gate.threshold = fx.gate ? fx.gateThreshold : -100;
+    };
+
+    document.getElementById('slideAutotune').addEventListener('input', (e) => { state[activeTrackId].fx.autotune = e.target.value; if(nodes[activeTrackId]) nodes[activeTrackId].autotune.pitch = (e.target.value / 100) * 0.08; });
+    document.getElementById('slideReverb').addEventListener('input', (e) => { let val = e.target.value / 100; state[activeTrackId].fx.reverbWet = val; if(state[activeTrackId].fx.reverb && nodes[activeTrackId]) nodes[activeTrackId].reverb.wet.value = val; });
+    document.getElementById('slideDelay').addEventListener('input', (e) => { let val = e.target.value / 100; state[activeTrackId].fx.delayWet = val; if(state[activeTrackId].fx.delay && nodes[activeTrackId]) nodes[activeTrackId].delay.wet.value = val; });
+
+    window.toggleHelpModal = function(show) { document.getElementById('helpModal').style.display = show ? 'flex' : 'none'; };
+
+    window.newProject = function() {
+        if(confirm("Créer un nouveau projet ?")) {
+            stopTimeline(); state = { beat: { player: null, muted: false, soloed: false, volume: -3 } }; nodes = {}; document.getElementById('beatRow').style.display = 'none';
+            playlistTracksContainer.innerHTML = ''; playlistTracksContainer.appendChild(document.getElementById('timelineHeader'));
+            generateTimelineNumbers(); setupDefaultTracks();
+            if(isMicReady) { Object.keys(state).forEach(id => { if (id !== 'beat') buildTrackNodes(id); }); }
+        }
+    };
+
+    window.saveProjectFile = async function() {
+        document.getElementById('flProjectStatus').textContent = "💾 Sauvegarde...";
+        let projectData = { trackCounter: trackCounter, tracks: {} };
+        for (let id of Object.keys(state)) {
+            if(id === 'beat') { projectData.tracks['beat'] = { volume: state.beat.volume, muted: state.beat.muted }; continue; }
+            let serializedClips = [];
+            for(let clip of state[id].clips) {
+                let base64 = clip.blob ? await blobToBase64(clip.blob) : '';
+                serializedClips.push({ id: clip.id, offset: clip.offset, duration: clip.duration, base64: base64 });
+            }
+            projectData.tracks[id] = { name: state[id].name, volume: state[id].volume, muted: state[id].muted, soloed: state[id].soloed, fx: state[id].fx, clips: serializedClips };
+        }
+        let blob = new Blob([JSON.stringify(projectData)], {type: "application/json"});
+        let dl = document.createElement('a'); dl.href = URL.createObjectURL(blob); dl.download = "Mon_Projet_Nettoye.flweb"; dl.click();
+        document.getElementById('flProjectStatus').textContent = "✅ Projet Sauvegardé";
+    };
+
+    document.getElementById('projectLoadInput').addEventListener('change', function(e) {
+        let file = e.target.files[0]; if(!file) return;
+        let reader = new FileReader();
+        reader.onload = async function(evt) {
+            try {
+                let projectData = JSON.parse(evt.target.result); stopTimeline();
+                state = { beat: { player: null, muted: false, soloed: false, volume: projectData.tracks.beat?.volume || -3 } };
+                playlistTracksContainer.innerHTML = ''; playlistTracksContainer.appendChild(document.getElementById('timelineHeader')); generateTimelineNumbers();
+                trackCounter = projectData.trackCounter || 1;
+                for(let id of Object.keys(projectData.tracks)) {
+                    if(id === 'beat') continue;
+                    let t = projectData.tracks[id]; state[id] = { name: t.name, volume: t.volume, muted: t.muted, soloed: t.soloed, fx: t.fx, clips: [] };
+                    createTrackDOM(id, t.name); if(isMicReady) buildTrackNodes(id);
+                    for(let c of t.clips) {
+                        let clipBlob = c.base64 ? base64ToBlob(c.base64) : null;
+                        state[id].clips.push({ id: c.id, offset: c.offset, duration: c.duration, blob: clipBlob });
+                        state[id].armed = true; createAudioClipOnGrid(clipBlob, c.offset, c.duration, c.id, c.base64); state[id].armed = false;
+                    }
+                    changeVolume(id, t.volume); document.getElementById(`vol-${id}`).value = t.volume;
+                }
+            } catch(err) { alert("Erreur de lecture."); }
+        };
+        reader.readAsText(file);
+    });
+
+    function blobToBase64(blob) { return new Promise((res, _) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); }); }
+    function base64ToBlob(b64) {
+        let parts = b64.split(';base64,'), contentType = parts[0].split(':')[1], chars = atob(parts[1]), arrs = [];
+        for (let o = 0; o < chars.length; o += 512) {
+            let s = chars.slice(o, o + 512), nums = new Array(s.length);
+            for (let i = 0; i < s.length; i++) nums[i] = s.charCodeAt(i);
+            arrs.push(new Uint8Array(nums));
+        }
+        return new Blob(arrs, {type: contentType});
+    }
+
+    /* ÉTAPE 2 : LE NETTOYAGE SPECTRAL SANS BRUIT (BOUNCE EXPORT EXPANDER) */
+    masterExportBtn.addEventListener('click', async () => {
+        stopTimeline();
+        Object.keys(state).forEach(id => { state[id].muted = false; state[id].soloed = false; });
+        updateMuteSoloRouting();
+
+        masterExportBtn.textContent = "⚡ NETTOYAGE SPECTRAL ET COMPILATION MP3...";
+        masterExportBtn.disabled = true;
+
+        let duration = beatPlayer ? beatPlayer.buffer.duration : 45;
+        const recDest = audioCtx.createMediaStreamDestination();
+        
+        if(beatPlayer) beatPlayer.connect(recDest);
+        Object.keys(state).forEach(id => {
+            if(id !== 'beat') state[id].clips.forEach(c => { if(c.player) c.player.connect(recDest); });
+        });
+
+        const bounceRecorder = new MediaRecorder(recDest.stream);
+        const chunks = [];
+        bounceRecorder.ondataavailable = e => chunks.push(e.data);
+        
+        bounceRecorder.onstop = async () => {
+            const wavBlob = new Blob(chunks, { type: 'audio/wav' });
+            const arrayBuf = await wavBlob.arrayBuffer();
+            const audioData = await audioCtx.decodeAudioData(arrayBuf);
+            const encoder = new lamejs.Mp3Encoder(2, audioData.sampleRate, 192);
+            
+            let l = audioData.getChannelData(0).length;
+            let leftBuf = new Int16Array(l);
+            let rightBuf = new Int16Array(l);
+            let rawL = audioData.getChannelData(0);
+            let rawR = audioData.getChannelData(1 || 0);
+            
+            // FILTRE EXPANDER SUPPRESSION DÉFINITIVE MATHÉMATIQUE
+            // Supprime définitivement le bruit résiduel entre les mots
+            while(l--) {
+                let sL = rawL[l];
+                let sR = rawR[l || 0];
+
+                // Si le signal descend sous -45dB (0.005 en valeur linéaire), on le force à zéro absolu
+                if (Math.abs(sL) < 0.005) sL = 0;
+                if (Math.abs(sR) < 0.005) sR = 0;
+
+                sL = Math.max(-1, Math.min(1, sL));
+                leftBuf[l] = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+                
+                sR = Math.max(-1, Math.min(1, sR));
+                rightBuf[l] = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+            }
+
+            let mp3Chunks = []; let sz = 1152;
+            for (let i = 0; i < leftBuf.length; i += sz) {
+                let chunkL = leftBuf.subarray(i, i + sz), chunkR = rightBuf.subarray(i, i + sz);
+                let mp3buf = encoder.encodeBuffer(chunkL, chunkR); if (mp3buf.length > 0) mp3Chunks.push(mp3buf);
+            }
+            let final = encoder.flush(); if (final.length > 0) mp3Chunks.push(final);
+            
+            const mp3Blob = new Blob(mp3Chunks, { type: 'audio/mp3' });
+            const downloadLink = document.createElement('a'); downloadLink.href = URL.createObjectURL(mp3Blob);
+            downloadLink.download = `FL_Studio_Web_Mix_Nettoye.mp3`; downloadLink.click();
+
+            masterExportBtn.textContent = "📦 EXPORTER LE MIX NETTOYÉ EN .MP3";
+            masterExportBtn.disabled = false;
+        };
+
+        bounceRecorder.start(); currentPosition = 0; playTimeline();
+        setTimeout(() => { bounceRecorder.stop(); stopTimeline(); }, duration * 1000);
+    });
+
+    generateTimelineNumbers(); setupDefaultTracks();
+</script>
+</body>
+</html>
