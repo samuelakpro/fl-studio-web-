@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-   <!-- Liens pour l'application PWA Samboy Studio -->
+ <!-- Liens pour l'application PWA Samboy Studio -->
   <link rel="manifest" href="manifest.json">
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
         .then(() => console.log('Application Samboy Studio configurée !'))
         .catch((err) => console.log('Erreur PWA:', err));
-    }
   </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
